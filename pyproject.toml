@@ -1,0 +1,16 @@
+[project]
+name = "comfy-va-plua"
+description = "VA+ (Vision Assistant Plus): runs LC Vision's Vision Assistant on a Venice.ai model, with node recommendations and canvas building."
+version = "0.1.0"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/bakutanuki/Comfy_VA_Plua"
+
+[tool.comfy]
+DisplayName = "VA+ (Vision Assistant Plus)"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
