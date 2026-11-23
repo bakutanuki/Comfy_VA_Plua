@@ -19,17 +19,36 @@ function syncConfig() {
   }).catch(() => {});
 }
 
-async function askKey() {
-  const key = window.prompt("Paste your Venice API key (leave empty to remove it). It is stored on this PC only.");
-  if (key === null) return;
-  try {
-    const r = await post("/va_plus/key", { key: key.trim() });
-    const j = await r.json();
-    alert(j.has_key ? "Venice key saved." : "Venice key removed.");
-  } catch (_) {
-    alert("Couldn't save the key.");
-  }
-  refreshStatus();
+// Comfy Desktop (Electron) blocks window.prompt, so the key gets its own small dialog.
+function askKey() {
+  document.querySelector(".vaplus-key")?.remove();
+  const box = document.createElement("div");
+  box.className = "vaplus-key";
+  box.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center";
+  box.innerHTML = `<div style="background:var(--comfy-menu-bg,#222);color:var(--fg-color,#ddd);padding:16px;border-radius:8px;width:380px;font-size:13px">
+      <div style="font-weight:600;margin-bottom:8px">Venice API key</div>
+      <input type="password" placeholder="Paste key (empty = remove)" style="width:100%;box-sizing:border-box;padding:6px" autocomplete="off">
+      <div style="opacity:.7;margin:6px 0 10px">Stored on this PC only. Never shown again or sent anywhere except Venice.</div>
+      <div class="msg" style="min-height:16px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button data-x>Cancel</button><button data-s>Save</button></div></div>`;
+  const input = box.querySelector("input"), msg = box.querySelector(".msg");
+  const close = () => box.remove();
+  const save = async () => {
+    try {
+      const j = await (await post("/va_plus/key", { key: input.value.trim() })).json();
+      msg.textContent = j.has_key ? "Saved." : "Key removed.";
+      refreshStatus();
+      setTimeout(close, 700);
+    } catch (_) {
+      msg.textContent = "Couldn't save the key.";
+    }
+  };
+  box.querySelector("[data-x]").onclick = close;
+  box.querySelector("[data-s]").onclick = save;
+  box.addEventListener("click", (e) => e.target === box && close());
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); });
+  document.body.appendChild(box);
+  input.focus();
 }
 
 let statusEl = null;
@@ -83,10 +102,13 @@ app.registerExtension({
   },
 });
 
-// refresh the cost after each VA chat or tour answer
+// VA's chat and tour requests: ComfyUI's page aborts any fetch after 60 s ("Fetch timeout"), but a Venice answer can take
+// longer (a tour of a big workflow especially), so give them 3 minutes. Also refresh the cost line after each answer.
+const VA_CALL = /\/lc_vision\/assistant\/(chat|tour)/;
 const origFetch = api.fetchApi.bind(api);
 api.fetchApi = async (path, opts) => {
-  const r = await origFetch(path, opts);
-  if (typeof path === "string" && /\/lc_vision\/assistant\/(chat|tour)/.test(path)) setTimeout(refreshStatus, 300);
+  const isVA = typeof path === "string" && VA_CALL.test(path);
+  const r = await origFetch(path, isVA ? { ...(opts || {}), timeoutMs: 180000 } : opts);
+  if (isVA) setTimeout(refreshStatus, 300);
   return r;
 };

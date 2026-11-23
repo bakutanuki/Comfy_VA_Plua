@@ -18,8 +18,9 @@ class FakeClient:
         self.replies = list(replies or [])
         FakeClient.instances.append(self)
 
-    def chat(self, body):
+    def chat(self, body, timeout=60):
         self.bodies.append(body)
+        self.timeouts = getattr(self, "timeouts", []) + [timeout]
         r = self.replies.pop(0) if self.replies else {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}]}
         if isinstance(r, Exception):
             raise r
@@ -132,6 +133,7 @@ def test_tour_via_venice(env):
     assert m._tour("P1 ...", "summary", "auto") == {"title": "T", "steps": []}
     body = FakeClient.instances[-1].bodies[0]
     assert body["messages"][1]["content"].startswith("PARTS:\nP1 ...") and body["response_format"]["json_schema"]["strict"]
+    assert FakeClient.instances[-1].timeouts == [150]
 
 
 def test_tour_salvage_fallback(env):

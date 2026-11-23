@@ -102,6 +102,18 @@ def test_key_only_in_header():
     assert "secret-k" not in r.full_url and r.full_url.endswith("/chat/completions")
 
 
+def test_timeout_passed_through():
+    seen = []
+
+    def opener(req, timeout=None):
+        seen.append(timeout)
+        return Resp({"choices": []})
+
+    Client("k", opener=opener).chat({})
+    Client("k", opener=opener).chat({}, timeout=150)
+    assert seen == [60, 150]
+
+
 def test_cost_extracted():
     op = Opener({"choices": [], "usage": {"cost": {"usd": 0.0042}}})
     assert Client("k", opener=op).chat({})["_cost_usd"] == pytest.approx(0.0042)

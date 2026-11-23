@@ -44,14 +44,14 @@ def cloud_plan(store, vram_gb: float) -> dict:
             "tours": True, "lite": False, "mode": "cloud", "why": ""}
 
 
-def _call(store, client_factory, make_body):
+def _call(store, client_factory, make_body, timeout=60):
     model = store.load()["model"]
     client = client_factory(store.get_key())
     try:
-        resp = client.chat(make_body(model))
+        resp = client.chat(make_body(model), timeout=timeout)
     except ModelMissing:
         SESSION["status"] = f"{model} is gone from Venice; using the fallback {FALLBACK_MODEL}."
-        resp = client.chat(make_body(FALLBACK_MODEL))
+        resp = client.chat(make_body(FALLBACK_MODEL), timeout=timeout)
     SESSION["cost_usd"] += resp.get("_cost_usd") or 0.0
     SESSION["last_error"] = ""
     return resp
@@ -87,7 +87,8 @@ def _wrap(m, store, client_factory):
         system = m.TOUR_SYSTEM + "\n\n" + (context or "").strip()[:6000]
         user = "PARTS:\n" + (parts or "")[:16000] + "\n\nWrite the tour as JSON."
         try:
-            resp = _call(store, client_factory, lambda model: build_tour_body(model, system, user, m.TOUR_SCHEMA))
+            # an 8000-token strict-JSON tour of a big workflow can take well over a minute
+            resp = _call(store, client_factory, lambda model: build_tour_body(model, system, user, m.TOUR_SCHEMA), timeout=150)
         except RuntimeError as e:
             SESSION["last_error"] = str(e)
             raise

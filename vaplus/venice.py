@@ -84,14 +84,14 @@ class Client:
     def __init__(self, key: str, opener=urllib.request.urlopen):
         self.key, self.opener = key, opener
 
-    def _request(self, path: str, body=None) -> dict:
+    def _request(self, path: str, body=None, timeout: int = TIMEOUT) -> dict:
         req = urllib.request.Request(BASE + path, data=None if body is None else json.dumps(body).encode(),
                                      method="GET" if body is None else "POST")
         req.add_header("Authorization", "Bearer " + self.key)
         req.add_header("Content-Type", "application/json")
         for attempt in (1, 2):
             try:
-                with self.opener(req, timeout=TIMEOUT) as r:
+                with self.opener(req, timeout=timeout) as r:
                     return json.loads(r.read().decode("utf-8") or "{}")
             except urllib.error.HTTPError as e:
                 if e.code == 404:
@@ -104,8 +104,8 @@ class Client:
                 if attempt == 2:
                     raise VeniceError(NO_ANSWER) from None
 
-    def chat(self, body: dict) -> dict:
-        data = self._request("/chat/completions", body)
+    def chat(self, body: dict, timeout: int = TIMEOUT) -> dict:
+        data = self._request("/chat/completions", body, timeout)
         data["_cost_usd"] = _cost(data)
         return data
 
